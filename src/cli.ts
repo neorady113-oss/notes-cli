@@ -22,7 +22,7 @@ function parseTagArgs(rest: string[]): { tags: string[]; words: string[] } {
   return { tags, words };
 }
 
-export function run(argv: string[], file: string, today: string): Result {
+export function run(argv: string[], file: string, today: string, color = false): Result {
   const [command, ...rest] = argv;
   try {
     const notes = loadNotes(file);
@@ -34,7 +34,7 @@ export function run(argv: string[], file: string, today: string): Result {
     }
     if (command === "list") {
       const { tags } = parseTagArgs(rest);
-      return { code: 0, out: formatList(tags.length ? filterByTag(notes, normalizeTags(tags)[0]) : notes) };
+      return { code: 0, out: formatList(tags.length ? filterByTag(notes, normalizeTags(tags)[0]) : notes, color) };
     }
     if (command === "search") return { code: 0, out: formatMatches(searchNotes(notes, rest.join(" "))) };
     if (command === "delete") {
@@ -49,7 +49,9 @@ export function run(argv: string[], file: string, today: string): Result {
 }
 
 if (import.meta.main) {
-  const result = run(process.argv.slice(2), process.env.NOTES_FILE ?? "notes.json", new Date().toISOString().slice(0, 10));
+  const file = process.env.NOTES_FILE ?? "notes.json";
+  const color = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
+  const result = run(process.argv.slice(2), file, new Date().toISOString().slice(0, 10), color);
   console.log(result.out);
   process.exitCode = result.code;
 }

@@ -56,9 +56,13 @@ export function formatMatches(notes: Note[]): string {
   return formatList(notes);
 }
 
-export function formatList(notes: Note[]): string {
+const gray = (s: string): string => `\x1b[90m${s}\x1b[39m`;
+const green = (s: string): string => `\x1b[32m${s}\x1b[39m`;
+
+export function formatList(notes: Note[], color = false): string {
   if (notes.length === 0) return "No notes yet.";
-  return notes
-    .map((n) => `${n.id}. ${n.text} (${n.created})${n.tags?.length ? ` [${n.tags.join(", ")}]` : ""}`)
-    .join("\n");
+  const id = (n: Note): string => (color ? gray(String(n.id)) : String(n.id));
+  const text = (n: Note): string => (color ? green(n.text) : n.text);
+  const tags = (n: Note): string => (n.tags?.length ? ` [${n.tags.join(", ")}]` : "");
+  return notes.map((n) => `${id(n)}. ${text(n)} (${n.created})${tags(n)}`).join("\n");
 }

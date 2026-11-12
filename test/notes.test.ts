@@ -83,6 +83,37 @@ describe("cli tags", () => {
   });
 });
 
+describe("colour", () => {
+  const notes = addNote([], "buy milk", DAY);
+  const strip = (s: string) => s.replace(/\x1b\[\d+m/g, "");
+
+  it("wraps id in gray and text in green", () => {
+    const out = formatList(notes, true);
+    expect(out).toContain("\x1b[90m1\x1b[39m");
+    expect(out).toContain("\x1b[32mbuy milk\x1b[39m");
+  });
+
+  it("stays plain by default", () => {
+    expect(formatList(notes)).toBe("1. buy milk (2026-11-06)");
+    expect(formatList(notes, false)).toBe("1. buy milk (2026-11-06)");
+  });
+
+  it("strips back to the plain output", () => {
+    expect(strip(formatList(notes, true))).toBe(formatList(notes));
+  });
+
+  it("does not colour an empty list", () => {
+    expect(formatList([], true)).toBe("No notes yet.");
+  });
+
+  it("run colours only when asked", () => {
+    const file = tmpFile();
+    run(["add", "buy milk"], file, DAY);
+    expect(run(["list"], file, DAY, true).out).toContain("\x1b[32mbuy milk\x1b[39m");
+    expect(run(["list"], file, DAY).out).toBe("1. buy milk (2026-11-06)");
+  });
+});
+
 describe("cli", () => {
   it("adds and lists notes in the file", () => {
     const file = tmpFile();
