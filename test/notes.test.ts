@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.ts";
-import { addNote, deleteNote, formatList, NotesError, type Note } from "../src/notes.ts";
+import { addNote, deleteNote, formatList, formatMatches, NotesError, searchNotes, type Note } from "../src/notes.ts";
 
 const DAY = "2026-11-06";
 const tmpFile = () => join(mkdtempSync(join(tmpdir(), "notes-")), "notes.json");
@@ -54,5 +54,39 @@ describe("cli", () => {
 
   it("prints usage for unknown commands", () => {
     expect(run(["fly"], tmpFile(), DAY).code).toBe(2);
+  });
+});
+
+const sample = (): Note[] => addNote(addNote(addNote([], "buy milk", DAY), "call bob", DAY), "Milk run", DAY);
+
+describe("search", () => {
+  it("returns only matching notes, case-insensitively, keeping ids", () => {
+    expect(searchNotes(sample(), "MILK").map((n) => n.id)).toEqual([1, 3]);
+    expect(searchNotes(sample(), "bob").map((n) => n.id)).toEqual([2]);
+  });
+
+  it("returns [] when nothing matches", () => {
+    expect(searchNotes(sample(), "zzz")).toEqual([]);
+  });
+
+  it("refuses empty queries", () => {
+    expect(() => searchNotes(sample(), "")).toThrow(NotesError);
+    expect(() => searchNotes(sample(), "   ")).toThrow(NotesError);
+  });
+
+  it("formats matches", () => {
+    expect(formatMatches([])).toBe("No matching notes.");
+    expect(formatMatches(sample())).toBe(formatList(sample()));
+  });
+
+  it("cli search finds notes", () => {
+    const file = tmpFile();
+    run(["add", "buy", "milk"], file, DAY);
+    run(["add", "call bob"], file, DAY);
+    expect(run(["search", "MILK"], file, DAY)).toEqual({ code: 0, out: "1. buy milk (2026-11-06)" });
+    expect(run(["search", "buy", "milk"], file, DAY).out).toBe("1. buy milk (2026-11-06)");
+    expect(run(["search", "zzz"], file, DAY)).toEqual({ code: 0, out: "No matching notes." });
+    expect(run(["search"], file, DAY).code).toBe(1);
+    expect(run(["list"], file, DAY).out).toBe("1. buy milk (2026-11-06)\n2. call bob (2026-11-06)");
   });
 });
