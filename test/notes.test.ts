@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.ts";
-import { addNote, deleteNote, formatList, formatMatches, NotesError, searchNotes, type Note } from "../src/notes.ts";
+import { addNote, deleteNote, filterByTag, formatList, formatMatches, NotesError, searchNotes, type Note } from "../src/notes.ts";
 
 const DAY = "2026-11-06";
 const tmpFile = () => join(mkdtempSync(join(tmpdir(), "notes-")), "notes.json");
@@ -28,6 +28,58 @@ describe("notes", () => {
   it("formats a list", () => {
     expect(formatList([])).toBe("No notes yet.");
     expect(formatList(addNote([], "milk", DAY))).toBe("1. milk (2026-11-06)");
+  });
+});
+
+describe("tags", () => {
+  it("stores normalized tags", () => {
+    expect(addNote([], "a", DAY, [" Home ", "home", "Food"])[0].tags).toEqual(["home", "food"]);
+    expect(addNote([], "a", DAY)[0].tags).toEqual([]);
+  });
+
+  it("rejects blank tags", () => {
+    expect(() => addNote([], "a", DAY, ["  "])).toThrow(NotesError);
+  });
+
+  it("filters by tag", () => {
+    const old: Note = { id: 1, text: "old", created: DAY };
+    const notes = addNote(addNote([old], "a", DAY, ["Home"]), "b", DAY, ["work"]);
+    expect(filterByTag(notes, "HOME").map((n) => n.text)).toEqual(["a"]);
+    expect(filterByTag(notes, "none")).toEqual([]);
+  });
+
+  it("formats tagged notes", () => {
+    expect(formatList(addNote([], "milk", DAY, ["home", "food"]))).toBe("1. milk (2026-11-06) [home, food]");
+    expect(formatList([{ id: 1, text: "x", created: DAY }])).toBe("1. x (2026-11-06)");
+  });
+});
+
+describe("cli tags", () => {
+  it("adds tags before or after the text", () => {
+    const file = tmpFile();
+    expect(run(["add", "--tag", "home", "--tag", "food", "buy", "milk"], file, DAY)).toEqual({ code: 0, out: "Added note 1." });
+    run(["add", "buy", "eggs", "--tag", "home"], file, DAY);
+    expect(run(["list"], file, DAY).out).toBe("1. buy milk (2026-11-06) [home, food]\n2. buy eggs (2026-11-06) [home]");
+  });
+
+  it("filters the list by tag", () => {
+    const file = tmpFile();
+    run(["add", "a", "--tag", "home"], file, DAY);
+    run(["add", "b"], file, DAY);
+    expect(run(["list", "--tag", "home"], file, DAY).out).toBe("1. a (2026-11-06) [home]");
+  });
+
+  it("fails on missing values", () => {
+    const file = tmpFile();
+    expect(run(["list", "--tag"], file, DAY).code).toBe(1);
+    expect(run(["add", "--tag", "home"], file, DAY).code).toBe(1);
+  });
+
+  it("handles old files without tags", () => {
+    const file = tmpFile();
+    writeFileSync(file, JSON.stringify([{ id: 1, text: "old", created: DAY }]));
+    expect(run(["list"], file, DAY).out).toBe("1. old (2026-11-06)");
+    expect(run(["list", "--tag", "x"], file, DAY).out).toBe("No notes yet.");
   });
 });
 

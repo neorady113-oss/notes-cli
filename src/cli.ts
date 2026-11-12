@@ -1,23 +1,41 @@
-// notes add <text> | notes list | notes search <text> | notes delete <id>. Run with: node src/cli.ts <command>
-import { addNote, deleteNote, formatList, formatMatches, loadNotes, NotesError, saveNotes, searchNotes } from "./notes.ts";
+// notes add [--tag <t>]... <text> | notes list [--tag <t>] | notes search <text> | notes delete <id>. Run with: node src/cli.ts <command>
+import { addNote, deleteNote, filterByTag, formatList, formatMatches, loadNotes, normalizeTags, NotesError, saveNotes, searchNotes } from "./notes.ts";
 
 export interface Result {
   code: number;
   out: string;
 }
 
-const USAGE = "usage: notes add <text> | notes list | notes search <text> | notes delete <id>";
+const USAGE = "usage: notes add [--tag <t>]... <text> | notes list [--tag <t>] | notes search <text> | notes delete <id>";
+
+function parseTagArgs(rest: string[]): { tags: string[]; words: string[] } {
+  const tags: string[] = [];
+  const words: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] !== "--tag") {
+      words.push(rest[i]);
+      continue;
+    }
+    if (i + 1 >= rest.length) throw new NotesError("--tag needs a value");
+    tags.push(rest[++i]);
+  }
+  return { tags, words };
+}
 
 export function run(argv: string[], file: string, today: string): Result {
   const [command, ...rest] = argv;
   try {
     const notes = loadNotes(file);
     if (command === "add") {
-      const next = addNote(notes, rest.join(" "), today);
+      const { tags, words } = parseTagArgs(rest);
+      const next = addNote(notes, words.join(" "), today, tags);
       saveNotes(file, next);
       return { code: 0, out: `Added note ${next[next.length - 1].id}.` };
     }
-    if (command === "list") return { code: 0, out: formatList(notes) };
+    if (command === "list") {
+      const { tags } = parseTagArgs(rest);
+      return { code: 0, out: formatList(tags.length ? filterByTag(notes, normalizeTags(tags)[0]) : notes) };
+    }
     if (command === "search") return { code: 0, out: formatMatches(searchNotes(notes, rest.join(" "))) };
     if (command === "delete") {
       saveNotes(file, deleteNote(notes, Number(rest[0])));
